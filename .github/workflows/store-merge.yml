@@ -1,0 +1,63 @@
+name: Merge re-pulled by-store range into production
+
+# After b2b-refire.yml has asked the portal again for a date range and the collect
+# workflow has saved the answer in the draft, this copies those rows over the same
+# dates in production (merge_store_range.py). No portal login: GCS only.
+# Dry run unless "write" is ticked. Replaced files are copied to <chain>/store_backup/.
+on:
+  workflow_dispatch:
+    inputs:
+      start:
+        description: "Start date YYYY-MM-DD (the range that was re-pulled)"
+        required: true
+        type: string
+      end:
+        description: "End date YYYY-MM-DD"
+        required: true
+        type: string
+      brand:
+        description: "both, alfamart or alfamidi"
+        default: "both"
+        type: choice
+        options: [both, alfamart, alfamidi]
+      write:
+        description: "Write to production (unticked = dry run)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: store-merge
+  cancel-in-progress: false
+
+env:
+  TZ: Asia/Jakarta
+  PYTHONIOENCODING: utf-8
+  GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/gcp_key.json
+
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Write GCS credentials
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+        run: printf '%s' "$GCP_SA_KEY" > gcp_key.json
+      - name: Merge
+        env:
+          START: ${{ inputs.start }}
+          END: ${{ inputs.end }}
+          BRAND: ${{ inputs.brand }}
+        run: |
+          args=(--start "$START" --end "$END" --brand "$BRAND")
+          [ "${{ inputs.write }}" = "true" ] && args+=(--go)
+          python -u merge_store_range.py "${args[@]}"
