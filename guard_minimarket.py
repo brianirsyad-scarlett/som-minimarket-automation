@@ -79,8 +79,10 @@ def check_emails(gh, now, problems):
     for b, t in newest.items():
         if t is None or now - t > timedelta(hours=EMAIL_MAX_AGE_H):
             when = "never" if t is None else t.astimezone(WIB).strftime("%d %b %H:%M WIB")
-            problems.append(f"**No {b} report email since {when}.** Check the Power Automate flow "
-                            f"'B2B {b.title()} to GitHub' (turned on? connections signed in?) and the mailbox folder.")
+            problems.append(f"**No {b} report email in GitHub since {when}.** First look in Outlook (Inbox\{b.title()}, "
+                            f"Junk, Deleted): if the newest report email there is also old, the portal accepted the "
+                            f"request but did not send the email - ask the portal / retry later; if newer emails are "
+                            f"there, the Power Automate flow 'B2B {b.title()} to GitHub' stopped (turned on? connections?).")
     if stuck:
         problems.append(f"**{len(stuck)} report email(s) open for more than {STUCK_ISSUE_H} h** "
                         f"(link expired or download failing): #{', #'.join(map(str, stuck[:8]))}")
