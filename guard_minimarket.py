@@ -142,6 +142,8 @@ def sync_alert(gh, problems, run_url, dry):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--no-fail", action="store_true",
+                    help="still raise/update the alert issue, but exit 0 (extra daily slots must not send a red run each)")
     a = ap.parse_args()
     now = datetime.now(timezone.utc)
     today = datetime.now(WIB).date()
@@ -159,7 +161,7 @@ def main():
     else:
         print("--- guard: all clear (report emails arriving, sales data current and complete) ---")
     sync_alert(gh, problems, run_url, a.dry_run)
-    return 1 if problems else 0
+    return 1 if (problems and not a.no_fail) else 0
 
 
 if __name__ == "__main__":

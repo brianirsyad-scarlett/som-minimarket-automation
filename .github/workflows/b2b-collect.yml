@@ -22,7 +22,12 @@ on:
   # one passes expect_today). The crons are backups; GitHub runs them late.
   schedule:
     - cron: "5 1 * * *"     # 08:05 WIB
-    - cron: "5 2 * * *"     # 09:05 WIB - last slot, --expect-today
+    - cron: "5 2 * * *"     # 09:05 WIB - --expect-today
+    # Late catch-up slots (GitHub cron only, no Power Automate edit needed): the portals can send the
+    # report emails hours late, as in October 2026. A slot with nothing to collect costs ~1.5 min.
+    - cron: "5 3 * * *"     # 10:05 WIB
+    - cron: "5 5 * * *"     # 12:05 WIB
+    - cron: "5 8 * * *"     # 15:05 WIB
 
 permissions:
   contents: read
@@ -57,7 +62,7 @@ jobs:
     needs: guard
     if: needs.guard.outputs.run == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60   # the 14-day refresh re-downloads recent periods
     steps:
       - uses: actions/checkout@v4
 
@@ -105,4 +110,10 @@ jobs:
         if: ${{ !cancelled() }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python -u guard_minimarket.py
+        run: |
+          # Only the last morning slot (expect_today) turns the run red; the other slots keep the
+          # alert issue up to date without one failure e-mail each.
+          args=(--no-fail)
+          [ "${{ github.event.schedule }}" = "5 2 * * *" ] && args=()
+          [ "${{ inputs.expect_today }}" = "true" ] && args=()
+          python -u guard_minimarket.py "${args[@]}"
