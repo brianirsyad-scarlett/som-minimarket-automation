@@ -20,6 +20,8 @@ must not carry a working link to sales data.
 """
 
 import argparse
+import base64
+import hashlib
 import html
 import os
 import re
@@ -37,6 +39,20 @@ TITLE_PREFIX = "B2B|"
 BRAND_MARKERS = {"alfamart": "b2b-np@smtp.sat.co.id", "alfamidi": "b2b_midi@smtp.sat.co.id"}
 URL_RE = re.compile(r"""https?://[^\s"'<>]+""")
 WIB = timezone(timedelta(hours=7))
+# The portal has no data for the last ~2 days of a period when it is first requested, and the
+# same period is re-requested every day under the SAME file name. A period that ended up to
+# this many days ago is therefore downloaded again and replaces the stored file if it changed
+# (2026-10-08: September stopped at the 28th for Alfamart/Alfamidi because the 30 Sep snapshot
+# was never replaced). Older periods are final.
+REFRESH_DAYS = 14
+
+
+def refreshable(filename: str) -> bool:
+    m = re.search(r"_sd_(\d{4}-\d\d-\d\d)", filename)
+    if not m:
+        return False
+    end = datetime.fromisoformat(m.group(1)).date()
+    return (datetime.now(WIB).date() - end).days <= REFRESH_DAYS
 
 
 def unwrap_safelinks(url: str) -> str:
@@ -148,8 +164,10 @@ def main() -> int:
         # Keyed on the full path, never the bare filename: Alfamart and Alfamidi
         # name their exports identically, so a filename key made the second
         # brand's report look "already there" and closed it uncollected.
-        if blob.name in seen_files or blob.exists():
-            # Closed periods are re-requested every day and never change.
+        exists = blob.exists()
+        if blob.name in seen_files or (exists and not refreshable(filename)):
+            # Periods that ended long ago are re-requested every day and never change.
+            # (Issues are listed newest first, so the first copy seen in a run is the freshest.)
             already += 1
             gh.close(n, f"Already in `gs://{gcs_paths.BUCKET}/{blob.name}`.", completed=True)
             continue
@@ -163,6 +181,14 @@ def main() -> int:
             problems.append(f"#{n}: {filename} bad download (HTTP {r.status_code}, {len(r.content)} bytes)")
             continue   # left OPEN: the next slot retries it while the link is still alive
 
+        if exists:
+            blob.reload()
+            if blob.md5_hash == base64.b64encode(hashlib.md5(r.content).digest()).decode():
+                seen_files.add(blob.name)
+                already += 1
+                gh.close(n, f"Already in `gs://{gcs_paths.BUCKET}/{blob.name}` (same content).", completed=True)
+                continue
+            print(f"  refreshed {brand}/{report}/{filename}: newer data than the stored copy")
         blob.upload_from_string(r.content, content_type="text/csv")
         seen_files.add(blob.name)
         saved += 1
