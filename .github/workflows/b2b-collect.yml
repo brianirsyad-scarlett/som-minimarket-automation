@@ -98,3 +98,11 @@ jobs:
       - name: Rebuild Minimarket_Sales.parquet
         if: ${{ !cancelled() }}
         run: python -u build_parquets.py --sales
+
+      # Guard: report emails still arriving, sales data current and complete. Red run + one
+      # rolling "ALERT|minimarket-guard" issue (which emails the owner) when something is wrong.
+      - name: Guard - emails and data
+        if: ${{ !cancelled() }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python -u guard_minimarket.py
