@@ -32,7 +32,7 @@ ALERT_TITLE = "ALERT|minimarket-guard"
 BRANDS = ("alfamart", "alfamidi")
 EMAIL_MAX_AGE_H = 30        # a report email normally lands every morning, ~08:00 WIB
 STALE_DAYS = 5              # the portals publish D-2..D-3; older than this means the feed is stuck
-FINAL_AFTER_DAY = 4         # from the 4th, the previous month must be complete
+FINAL_AFTER_DAY = 5         # the portal is ~2 days late: by the 5th the previous month must be complete
 STUCK_ISSUE_H = 48
 SALES = "sales_parquet/Minimarket_Sales.parquet"
 
