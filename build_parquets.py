@@ -86,10 +86,11 @@ def describe(df: pd.DataFrame) -> str:
 # ---------------------------------------------------------------- sales -----
 
 def miss_glam_rows(bucket):
-    """Miss Glam stores from production miss_glam/sell_out/ (monthly files written by publish_miss_glam.py).
+    """Miss Glam BRANCHES from production miss_glam/sell_out/ (monthly files written by publish_miss_glam.py).
 
-    No Category (the portal has none, and the user chose to skip it) and an extra "Store Type" column
-    (STORE / ONLINE / DISTRIBUTOR / WAREHOUSE / EVENT / OTHER / DELETED) so Power BI can filter branches."""
+    Only Store Type == STORE (the user's choice, 2026-10-21): ONLINE, DISTRIBUTOR, WAREHOUSE, EVENT, OTHER and
+    DELETED stay in the monthly files but are not in Minimarket_Sales. No Category (the portal has none; the user
+    chose to skip it). The parquet keeps exactly the columns the other chains have."""
     frames = []
     for b in bucket.list_blobs(prefix=f"{PROD_ROOT}/miss_glam/sell_out/"):
         if b.name.lower().endswith(".csv"):
@@ -98,6 +99,10 @@ def miss_glam_rows(bucket):
         print("  miss_glam: no production files yet - not included")
         return None
     d = pd.concat(frames, ignore_index=True)
+    skipped = d[d["Store Type"] != "STORE"]
+    d = d[d["Store Type"] == "STORE"]
+    print(f"  miss_glam: leaving out {len(skipped):,} non-branch row(s) "
+          f"({', '.join(f'{k} {v:,}' for k, v in skipped['Store Type'].value_counts().items()) or 'none'})")
     out = pd.DataFrame({
         "Date": pd.to_datetime(d["Date"]).dt.date,
         "Branch": d["Branch"],
@@ -107,7 +112,6 @@ def miss_glam_rows(bucket):
         "Value IDR": d["Value IDR"].astype(float),
         "Value Qty": d["Value Qty"].astype(float),
         "Account": "MISS GLAM",
-        "Store Type": d["Store Type"],
     })
     dupes = out.duplicated(["Date", "Branch", "Product"]).sum()
     print(f"  miss_glam: {len(frames)} production file(s), {len(out):,} rows"

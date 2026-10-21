@@ -120,17 +120,17 @@ def check_data(today, problems):
                             f"{', '.join(str(d) for d in holes[:10])}{' ...' if len(holes) > 10 else ''}.")
 
 
-def sync_alert(gh, problems, run_url, dry):
-    existing = next((i for i in gh.issues(state="open", per_page=100) if (i.get("title") or "") == ALERT_TITLE), None)
+def sync_alert(gh, problems, run_url, dry, title=ALERT_TITLE, who="minimarket guard"):
+    existing = next((i for i in gh.issues(state="open", per_page=100) if (i.get("title") or "") == title), None)
     stamp = datetime.now(WIB).strftime("%d %b %Y %H:%M WIB")
     if problems:
-        body = (f"The minimarket guard found {len(problems)} problem(s) at {stamp}"
+        body = (f"The {who} found {len(problems)} problem(s) at {stamp}"
                 f"{f' ({run_url})' if run_url else ''}:\n\n" + "\n".join(f"- {p}" for p in problems) +
                 "\n\nThis issue updates itself and closes when everything is fine again.")
         if dry:
             return
         if existing is None:
-            gh.call("POST", "/issues", json={"title": ALERT_TITLE, "body": body})
+            gh.call("POST", "/issues", json={"title": title, "body": body})
         elif (existing.get("body") or "").split(":\n\n", 1)[-1] != body.split(":\n\n", 1)[-1]:
             gh.call("PATCH", f"/issues/{existing['number']}", json={"body": body})
             gh.call("POST", f"/issues/{existing['number']}/comments", json={"body": f"Updated {stamp}."})

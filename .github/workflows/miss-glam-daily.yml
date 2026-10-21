@@ -26,6 +26,7 @@ on:
 permissions:
   contents: read
   actions: read
+  issues: write   # the guard's rolling ALERT|miss-glam-guard issue
 
 concurrency:
   group: miss-glam-daily
@@ -90,3 +91,11 @@ jobs:
       - name: Rebuild Minimarket_Sales.parquet
         if: ${{ !cancelled() && inputs.draft_only != true }}
         run: python -u build_parquets.py --sales
+
+      # Red run + one rolling "ALERT|miss-glam-guard" issue (which emails the owner) when Miss Glam stops
+      # updating: sales not up to yesterday, a hole, too few stores, or no stock snapshot.
+      - name: Guard - Miss Glam data
+        if: ${{ !cancelled() && inputs.draft_only != true }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python -u guard_miss_glam.py
