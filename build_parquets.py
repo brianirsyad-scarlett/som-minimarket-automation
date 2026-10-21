@@ -85,6 +85,36 @@ def describe(df: pd.DataFrame) -> str:
 
 # ---------------------------------------------------------------- sales -----
 
+def miss_glam_rows(bucket):
+    """Miss Glam stores from production miss_glam/sell_out/ (monthly files written by publish_miss_glam.py).
+
+    No Category (the portal has none, and the user chose to skip it) and an extra "Store Type" column
+    (STORE / ONLINE / DISTRIBUTOR / WAREHOUSE / EVENT / OTHER / DELETED) so Power BI can filter branches."""
+    frames = []
+    for b in bucket.list_blobs(prefix=f"{PROD_ROOT}/miss_glam/sell_out/"):
+        if b.name.lower().endswith(".csv"):
+            frames.append(pd.read_csv(io.BytesIO(b.download_as_bytes()), dtype=str, encoding="utf-8-sig"))
+    if not frames:
+        print("  miss_glam: no production files yet - not included")
+        return None
+    d = pd.concat(frames, ignore_index=True)
+    out = pd.DataFrame({
+        "Date": pd.to_datetime(d["Date"]).dt.date,
+        "Branch": d["Branch"],
+        "Brand": d["Brand"],
+        "Category": None,
+        "Product": d["Product"],
+        "Value IDR": d["Value IDR"].astype(float),
+        "Value Qty": d["Value Qty"].astype(float),
+        "Account": "MISS GLAM",
+        "Store Type": d["Store Type"],
+    })
+    dupes = out.duplicated(["Date", "Branch", "Product"]).sum()
+    print(f"  miss_glam: {len(frames)} production file(s), {len(out):,} rows"
+          + (f", {dupes} repeated (Date, Branch, Product) - kept (different SKUs can share a name)" if dupes else ""))
+    return out
+
+
 def build_sales(bucket, dry: bool) -> None:
     print("--- Minimarket_Sales.parquet (from production sell_out/) ---")
     parts = []
@@ -108,6 +138,9 @@ def build_sales(bucket, dry: bool) -> None:
     combined["Date"] = pd.to_datetime(combined["Date"]).dt.date
     combined["Value Qty"] = combined["Value Qty"].astype(float)
     combined["Value IDR"] = combined["Value IDR"].astype(float)
+    miss_glam = miss_glam_rows(bucket)
+    if miss_glam is not None:
+        combined = pd.concat([combined, miss_glam], ignore_index=True)
     print(f"  built: {describe(combined)}")
     old = bucket.get_blob(SALES_DEST)
     if old is not None:

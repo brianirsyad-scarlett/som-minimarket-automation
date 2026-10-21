@@ -1,0 +1,92 @@
+name: Miss Glam Sell Out + Stock - download + publish
+
+# The Miss Glam M2 portal (m2.glamindo.com) has no request/email step: log in, export each store's day CSV.
+# Every run re-downloads the newest `look_back` days for every store (so a late edit at the portal is picked up),
+# merges them into the monthly zips of the portal's own files (daily_raw/), rebuilds the monthly sell-out files,
+# takes today's stock snapshot, then rebuilds Minimarket_Sales.parquet (Account = MISS GLAM).
+#
+#   draft_only = true  -> only the draft (sales_parquet/raw/minimarket/miss_glam/); no production, no parquet.
+#                         Use it for a smoke run.
+#
+# The portal allows ONE session per user, so a login elsewhere (a browser, the laptop script) logs this run out
+# for a moment; the downloader logs in again by itself.
+on:
+  workflow_dispatch:
+    inputs:
+      look_back:
+        description: "Days to (re)download, ending today"
+        default: "5"
+      draft_only:
+        description: "true = draft only (smoke run)"
+        type: boolean
+        default: false
+  schedule:
+    - cron: "45 19 * * *"   # 02:45 WIB - backup only
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: miss-glam-daily
+  cancel-in-progress: false
+
+env:
+  TZ: Asia/Jakarta
+  PYTHONIOENCODING: utf-8
+  GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/gcp_key.json
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.g.outputs.run }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: g
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash guard.sh miss-glam-daily.yml day
+
+  miss-glam-daily:
+    needs: guard
+    if: needs.guard.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Download every store, newest days
+        id: dl
+        env:
+          GLAMINDO_USERNAME: ${{ secrets.GLAMINDO_USERNAME }}
+          GLAMINDO_PASSWORD: ${{ secrets.GLAMINDO_PASSWORD }}
+        run: python -u sources/miss_glam_daily.py --out out/miss_glam --look-back "${{ inputs.look_back || '5' }}"
+
+      - name: Write GCS credentials
+        if: ${{ !cancelled() }}
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+        run: printf '%s' "$GCP_SA_KEY" > gcp_key.json
+
+      # Whatever downloaded still gets published (a failed store-day keeps its older value in the zip).
+      - name: Publish draft (+ production)
+        if: ${{ !cancelled() }}
+        run: |
+          if [ "${{ inputs.draft_only }}" = "true" ]; then
+            python -u publish_miss_glam.py --daily out/miss_glam
+          else
+            python -u publish_miss_glam.py --daily out/miss_glam --production
+          fi
+
+      - name: Rebuild Minimarket_Sales.parquet
+        if: ${{ !cancelled() && inputs.draft_only != true }}
+        run: python -u build_parquets.py --sales

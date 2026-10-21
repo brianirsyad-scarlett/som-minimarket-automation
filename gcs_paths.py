@@ -5,14 +5,15 @@ files exactly as downloaded. Production is written only by the publish steps,
 each of which documents its own paths:
   publish_production.py  Alfamart / Alfamidi -> sales_sell out_minimarket/<brand>/
   publish_indomaret.py   Indomaret           -> sales_sell out_minimarket/indomaret/
+  publish_miss_glam.py   Miss Glam           -> sales_sell out_minimarket/miss_glam/ (sell_out/, stock/)
   build_parquets.py      sales_parquet/Minimarket_Sales.parquet, Minimarket_Market_Share.parquet
 """
 
 BUCKET = "bucket_som"
 ROOT = "sales_parquet/raw/minimarket"
 
-CHAINS = ("alfamart", "alfamidi", "indomaret")
-REPORTS = ("market_share", "sell_out_branch", "sell_out_store", "stock")
+CHAINS = ("alfamart", "alfamidi", "indomaret", "miss_glam")
+REPORTS = ("market_share", "sell_out_branch", "sell_out_store", "stock", "daily_raw")
 
 
 def prefix(chain: str, report: str) -> str:
