@@ -197,6 +197,11 @@ def process_files(folder_path, account_name):
                         return "BODY LOTION"
                     elif "B.SRM" in p:
                         return "BODY SERUM"
+                    elif re.search(r"\bMEN\b", p) or "BIRU SAMUDRA" in p or "BIRU SMDR" in p or "SOUL" in p:
+                        # Men's perfume is its own portal category (3239 MEN PARFUME EDT & EXTRAIT), same name as
+                        # in the market share; Alfamidi sold Biru Samudra as "SCARLETT EDP BIRU SAMUDRA 30ML" before
+                        # the "EXT MEN" names. \bMEN\b so WOMEN never matches.
+                        return "MEN PARFUME EDT & EXTRAIT"
                     elif "EDP" in p or "EXT" in p or "XDP" in p:
                         # XDP (SCARLETT XDP SAFA ATHER 30ML, Alfamidi since 2026-03)
                         # has neither EDP nor EXT; it was silently dropped as uncategorised.
