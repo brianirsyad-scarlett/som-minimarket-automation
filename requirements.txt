@@ -1,5 +1,5 @@
 requests>=2.31
-pyotp>=2.9
+pyotp>=2.9,<2.12  # 2.12.0 (2026-11-15) rejects secrets < 112 bits; Alfamart's portal-issued secret is shorter
 python-dotenv>=1.0
 playwright>=1.45
 google-cloud-storage>=2.16
