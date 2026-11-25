@@ -4,6 +4,8 @@
 #
 #     guard.sh <workflow file> day        once per WIB day
 #     guard.sh <workflow file> <minutes>  once per that many minutes
+#     guard.sh <workflow file> since:HH:MM  skip only if a run succeeded since HH:MM WIB today
+#                                          (a second daily slot that must not be blocked by the morning run)
 #
 # Runs started by hand or by dispatch.yml (event workflow_dispatch) always
 # run. A backup run (schedule, or workflow_run chaining) is skipped when
@@ -17,7 +19,9 @@ if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
   echo "run=true" >> "$GITHUB_OUTPUT"; echo "started on demand - running"; exit 0
 fi
 
-if [ "$window" = "day" ]; then
+if [[ "$window" == since:* ]]; then
+  since=$(date -u -d "$(TZ=Asia/Jakarta date +%F) ${window#since:} +0700" +%FT%TZ)
+elif [ "$window" = "day" ]; then
   since=$(date -u -d "$(TZ=Asia/Jakarta date +%F) 00:00 +0700" +%FT%TZ)
 else
   since=$(date -u -d "-${window} minutes" +%FT%TZ)

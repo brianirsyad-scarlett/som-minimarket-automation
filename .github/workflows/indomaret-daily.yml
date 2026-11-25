@@ -46,7 +46,10 @@ jobs:
       - id: g
         env:
           GH_TOKEN: ${{ github.token }}
-        run: bash guard.sh indomaret-daily.yml day
+        run: |
+          window=day
+          [ "${{ github.event.schedule }}" = "30 7 * * *" ] && window="since:14:00"
+          bash guard.sh indomaret-daily.yml "$window"
 
   indomaret-daily:
     needs: guard
